@@ -9,3 +9,26 @@ composites:
     - name: measurement
       polarization: hv
     standard_name: sar-ice
+
+  ratio:
+    compositor: !!python/name:satpy.composites.sar.SARRatioRGB
+    prerequisites:
+    - name: measurement
+      polarization: hh
+    - name: measurement
+      polarization: hv
+    - name: measurement
+      polarization: hh
+    - name: measurement
+      polarization: hv
+    standard_name: default
+
+
+  quicklook:
+    compositor: !!python/name:satpy.composites.sar.SARQuicklook
+    prerequisites:
+    - name: measurement
+      polarization: hv
+    - name: measurement
+      polarization: hh
+    standard_name: default

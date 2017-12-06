@@ -563,3 +563,12 @@ enhancements:
       method: *stretchfun
       kwargs: {stretch: linear}
 
+  sar_overview_default:
+    standard_name: sar_overview
+    operations:
+    - name: stretch
+      method: *stretchfun
+      kwargs: {stretch: linear}
+    - name: gamma
+      method: *gammafun 
+      kwargs: {gamma: 1.6}

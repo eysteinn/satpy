@@ -58,3 +58,33 @@ class SARIce(RGBCompositor):
         green.info = combine_info(mhh, mhv)
 
         return super(SARIce, self).__call__((mhv, green, mhh), *args, **kwargs)
+
+
+
+class SARRatioRGB(RGBCompositor):
+    def __call__(self, projectables, *args, **kwargs):
+        """Create the SAR ratio composite."""
+        (red, green, numerator, denominator) = projectables
+        blue = abs(numerator) / abs(denominator)
+        blue.info = combine_info(red, green)
+        return super(SARRatioRGB, self).__call__((red, green, blue), *args, **kwargs)
+
+
+
+class SARQuicklook(RGBCompositor):
+    """The SAR quicklook composite."""
+
+    def __call__(self, projectables, *args, **kwargs):
+        """Create the SAR Ice composite."""
+        (mhh, mhv) = projectables
+
+        #mhh = mhh-mhh.min()
+        #mhh = mhh/mhh.max()
+
+        #mhv = mhv-mhv.min()
+        #mhv = mhv/mhv.max()
+
+        blue = (abs(mhh)+abs(mhv)) / 2.0
+
+        return super(SARQuicklook, self).__call__((mhh, mhv, blue), *args, **kwargs)
+
