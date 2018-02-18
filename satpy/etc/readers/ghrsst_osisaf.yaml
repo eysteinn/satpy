@@ -15,4 +15,7 @@ datasets:
 file_types:
   ghrsst_osisaf_l2:
     file_reader: !!python/name:satpy.readers.ghrsst_osisaf.GHRSST_OSISAFL2 ''
-    file_patterns: ['S-OSI_-FRA_-{satid:3s}_-NARSST_FIELD-{start_time:%Y%m%d%H00}Z.nc']
+    #file_patterns: ['S-OSI_-FRA_-{satid:3s}_-NARSST_FIELD-{start_time:%Y%m%d%H00}Z.nc']
+#S-OSI_-FRA_-MTOP-IASISSTFIELD-201802161156Z.nc
+    #file_patterns: ['S-OSI_-FRA_-{satid}-{something}-{start_time:%Y%m%d%H00}Z.nc']
+    file_patterns: ['blablaS-OSI_-FRA_-{satid}-{something}-{start_time:%Y%m%d%H%M}Z.nc']

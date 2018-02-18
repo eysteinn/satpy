@@ -1,0 +1,37 @@
+reader:
+  description: Generic Eumetsat / KNMI Ascat Metop Wind field Reader
+  name: osisaf_sst
+  reader: !!python/name:satpy.readers.yaml_reader.FileYAMLReader ''
+  sensors: [sst]
+  default_datasets:
+
+datasets:
+  longitude:
+    name: longitude
+    file_type: osisaf_sst
+    standard_name: longitude
+    units: degree
+
+  latitude:
+    name: latitude
+    file_type: osisaf_sst
+    standard_name: latitude
+    units: degree
+
+  sea_surface_temperature:
+    name: sea_surface_temperature
+    sensor: sst
+    coordinates: [longitude, latitude]
+    file_type: osisaf_sst
+    standard_name: sea_surface_temperature
+
+
+file_types:
+  osisaf_sst:
+    file_reader: !!python/name:satpy.readers.osisaf_sst.OsiSafSSTFileHandler ''
+    #file_patterns: ['S-OSI_-FRA_-MTOP-IASISSTFIELD-201802161156Z.nc']
+    file_patterns: ['S-OSI_-FRA_-{test1}-{test2}-{start_time:%Y%m%d%H%M}Z.nc']
+##S-OSI_-FRA_-MTOP-IASISSTFIELD-201802161156Z.nc
+#    file_patterns: ['S-OSI_-FRA_-MTOP_-IASISSTFIELD-{start_time:%Y%m%d%H00}Z.nc']
+#S-OSI_-FRA_-MTOP-IASISSTFIELD-201802161147Z.nc
+#    file_patterns: ['ascat_{start_time:%Y%m%d_%H%M%S}_{platform_id}_{orbit}_{service}_{processing_type}_{cell_spacing}_{version}_{product_content}.{product_level}.nc']
