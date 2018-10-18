@@ -26,7 +26,8 @@
 
 The reader is based on preliminary test data provided by EUMETSAT.
 The data description is described in the
-    "LI L2 Product User Guide [LIL2PUG] Draft version" documentation
+"LI L2 Product User Guide [LIL2PUG] Draft version" documentation.
+
 """
 import h5netcdf
 import logging
@@ -47,17 +48,16 @@ class LIFileHandler(BaseFileHandler):
         super(LIFileHandler, self).__init__(filename, filename_info,
                                             filetype_info)
 
-        self.nc = h5netcdf.File(filename, 'r')
+        self.nc = h5netcdf.File(self.filename, 'r')
         # Get grid dimensions from file
         refdim = self.nc['grid_position'][:]
         # Get number of lines and columns
         self.nlines = int(refdim[2])
         self.ncols = int(refdim[3])
-        self.filename = filename
         self.cache = {}
         logger.debug('Dimension : {}'.format(refdim))
         logger.debug('Row/Cols: {} / {}'.format(self.nlines, self.ncols))
-        logger.debug('Reading: {}'.format(filename))
+        logger.debug('Reading: {}'.format(self.filename))
         logger.debug('Start: {}'.format(self.start_time))
         logger.debug('End: {}'.format(self.end_time))
 

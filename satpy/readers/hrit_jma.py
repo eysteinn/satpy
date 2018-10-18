@@ -29,15 +29,15 @@ References:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import numpy as np
+import xarray as xr
 
 from pyresample import geometry
 from satpy.readers.hrit_base import (HRITFileHandler, ancillary_text,
                                      annotation_header, base_hdr_map,
-                                     image_data_function, make_time_cds_short,
-                                     time_cds_short)
+                                     image_data_function)
 
 logger = logging.getLogger('hrit_jma')
 
@@ -86,32 +86,8 @@ time_cds_expanded = np.dtype([('days', '>u2'),
                               ('nanoseconds', '>u2')])
 
 
-def make_time_cds_expanded(tcds_array):
-    return (datetime(1958, 1, 1) +
-            timedelta(days=int(tcds_array['days']),
-                      milliseconds=int(tcds_array['milliseconds']),
-                      microseconds=float(tcds_array['microseconds'] +
-                                         tcds_array['nanoseconds'] / 1000.)))
-
-
-def recarray2dict(arr):
-    res = {}
-    for dtuple in arr.dtype.descr:
-        key = dtuple[0]
-        ntype = dtuple[1]
-        data = arr[key]
-        if isinstance(ntype, list):
-            res[key] = recarray2dict(data)
-        else:
-            res[key] = data
-
-    return res
-
-
 class HRITJMAFileHandler(HRITFileHandler):
-
-    """JMA HRIT format reader
-    """
+    """JMA HRIT format reader."""
 
     def __init__(self, filename, filename_info, filetype_info):
         """Initialize the reader."""
@@ -125,7 +101,7 @@ class HRITJMAFileHandler(HRITFileHandler):
         self.mda['planned_end_segment_number'] = self.mda['total_no_image_segm']
         self.mda['planned_start_segment_number'] = 1
 
-        items = self.mda['image_data_function'].split('\r')
+        items = self.mda['image_data_function'].decode().split('\r')
         if items[0].startswith('$HALFTONE'):
             self.calibration_table = []
             for item in items[1:]:
@@ -143,7 +119,8 @@ class HRITJMAFileHandler(HRITFileHandler):
 
             self.calibration_table = np.array(self.calibration_table)
 
-        sublon = float(self.mda['projection_name'].strip().split('(')[1][:-1])
+        projection_name = self.mda['projection_name'].decode()
+        sublon = float(projection_name.strip().split('(')[1][:-1])
         self.mda['projection_parameters']['SSP_longitude'] = sublon
 
     def get_area_def(self, dsid):
@@ -162,8 +139,6 @@ class HRITJMAFileHandler(HRITFileHandler):
         ncols = int(self.mda['number_of_columns'])
 
         segment_number = self.mda['segment_sequence_number'] - 1
-        total_segments = (self.mda['planned_end_segment_number'] -
-                          self.mda['planned_start_segment_number'] + 1)
 
         loff -= segment_number * nlines
 
@@ -187,72 +162,41 @@ class HRITJMAFileHandler(HRITFileHandler):
             ncols,
             nlines,
             area_extent)
-
-        self.area = area
-
         return area
 
-    def get_dataset(self, key, info, out=None,
-                    xslice=slice(None), yslice=slice(None)):
+    def get_dataset(self, key, info):
         """Get the dataset designated by *key*."""
-        res = super(HRITJMAFileHandler, self).get_dataset(key, info, out,
-                                                          xslice, yslice)
-        if res is not None:
-            out = res
+        res = super(HRITJMAFileHandler, self).get_dataset(key, info)
 
-        self.calibrate(out, key.calibration)
-        out.info['units'] = info['units']
-        out.info['standard_name'] = info['standard_name']
-        #out.info['platform_name'] = self.platform_name
-        out.info['platform_name'] = 'Himawari-8'
-        out.info['sensor'] = 'ahi'
+        res = self.calibrate(res, key.calibration)
+        res.attrs.update(info)
+        res.attrs['platform_name'] = 'Himawari-8'
+        res.attrs['sensor'] = 'ahi'
+        res.attrs['satellite_longitude'] = float(self.mda['projection_parameters']['SSP_longitude'])
+        res.attrs['satellite_latitude'] = 0.
+        res.attrs['satellite_altitude'] = float(self.mda['projection_parameters']['h'])
+        return res
 
     def calibrate(self, data, calibration):
         """Calibrate the data."""
         tic = datetime.now()
 
         if calibration == 'counts':
-            return
+            return data
         elif calibration == 'radiance':
             raise NotImplementedError("Can't calibrate to radiance.")
         else:
             cal = self.calibration_table
 
-            data.data[:] = np.interp(data.data.ravel(),
-                                     cal[:, 0], cal[:, 1]).reshape(data.data.shape)
+            def interp(arr):
+                return np.interp(arr.ravel(),
+                                 cal[:, 0], cal[:, 1]).reshape(arr.shape)
+
+            res = data.data.map_blocks(interp, dtype=cal[:, 0].dtype)
+
+            res = xr.DataArray(res,
+                               dims=data.dims, attrs=data.attrs,
+                               coords=data.coords)
+        res = res.where(data > 0)
         logger.debug("Calibration time " + str(datetime.now() - tic))
-
-
-def show(data, negate=False):
-    """Show the stretched data.
-    """
-    from PIL import Image as pil
-    data = np.array((data - data.min()) * 255.0 /
-                    (data.max() - data.min()), np.uint8)
-    if negate:
-        data = 255 - data
-    img = pil.fromarray(data)
-    img.show()
-
-
-if __name__ == "__main__":
-
-    # TESTFILE = ("/media/My Passport/HIMAWARI-8/HISD/Hsfd/" +
-    #            "201502/07/201502070200/00/B13/" +
-    #            "HS_H08_20150207_0200_B13_FLDK_R20_S0101.DAT")
-    TESTFILE = ("/local_disk/data/himawari8/testdata/" +
-                "HS_H08_20130710_0300_B13_FLDK_R20_S1010.DAT")
-    #"HS_H08_20130710_0300_B01_FLDK_R10_S1010.DAT")
-    SCENE = ahisf([TESTFILE])
-    SCENE.read_band(TESTFILE)
-    SCENE.calibrate(['13'])
-    # SCENE.calibrate(['13'], calibrate=0)
-
-    # print SCENE._data['13']['counts'][0].shape
-
-    show(SCENE.channels['13'], negate=False)
-
-    import matplotlib.pyplot as plt
-    plt.imshow(SCENE.channels['13'])
-    plt.colorbar()
-    plt.show()
+        return res

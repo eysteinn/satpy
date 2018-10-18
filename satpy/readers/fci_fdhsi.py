@@ -25,14 +25,12 @@
 """Interface to MTG-FCI Retrieval NetCDF files
 
 """
-from datetime import datetime, timedelta
 import numpy as np
 from pyresample import geometry
-import h5netcdf
+import h5py
+import xarray as xr
 import logging
-from collections import defaultdict
 
-from satpy.dataset import Dataset
 from satpy.readers.file_handlers import BaseFileHandler
 
 logger = logging.getLogger(__name__)
@@ -46,12 +44,11 @@ class FCIFDHSIFileHandler(BaseFileHandler):
     def __init__(self, filename, filename_info, filetype_info):
         super(FCIFDHSIFileHandler, self).__init__(filename, filename_info,
                                                   filetype_info)
-        logger.debug('Reading: {}'.format(filename))
+        logger.debug('Reading: {}'.format(self.filename))
         logger.debug('Start: {}'.format(self.start_time))
         logger.debug('End: {}'.format(self.end_time))
 
-        self.nc = h5netcdf.File(filename, 'r')
-        self.filename = filename
+        self.nc = h5py.File(self.filename, 'r')
         self.cache = {}
 
     @property
@@ -73,19 +70,23 @@ class FCIFDHSIFileHandler(BaseFileHandler):
         # Get metadata for given dataset
         variable = self.nc['/data/{}/measured/effective_radiance'
                            .format(key.name)]
-        ds = (np.ma.masked_equal(variable[:],
-                                 variable.attrs['_FillValue']) *
-              (variable.attrs['scale_factor'] * 1.0) +
-              variable.attrs.get('add_offset', 0))
+        # Convert to xarray
+        radiances = xr.DataArray(np.asarray(variable, np.float32), dims=['y', 'x'])
+        radiances.attrs['scale_factor'] = variable.attrs['scale_factor']
+        radiances.attrs['offset'] = variable.attrs.get('add_offset', 0)
+        radiances.attrs['FillValue'] = variable.attrs['_FillValue']
+        # Set invalid values to NaN
+        radiances.values[radiances == radiances.attrs['FillValue']] = np.nan
+        # Apply scale factor and offset
+        radiances = radiances * (radiances.attrs['scale_factor'] * 1.0) + radiances.attrs['offset']
 
-        self.calibrate(ds, key)
+        #TODO Calibration is disabled, waiting for calibration parameters from EUMETSAT
+        res = self.calibrate(radiances, key)
 
-        out = Dataset(ds, dtype=np.float32)
+        self.cache[key] = res
+        self.nlines, self.ncols = res.shape
 
-        self.cache[key] = out
-        self.nlines, self.ncols = ds.shape
-
-        return out
+        return res
 
     def calc_area_extent(self, key):
         """Calculate area extent for a dataset.
@@ -100,10 +101,10 @@ class FCIFDHSIFileHandler(BaseFileHandler):
         variable = self.nc['/data/{}/measured/effective_radiance'
                            .format(key.name)]
         # Get start/end line and column of loaded swath.
-        self.startline = int(measured.variables['start_position_row'][...])
-        self.endline = int(measured.variables['end_position_row'][...])
-        self.startcol = int(measured.variables['start_position_column'][...])
-        self.endcol = int(measured.variables['end_position_column'][...])
+        self.startline = int(measured['start_position_row'][...])
+        self.endline = int(measured['end_position_row'][...])
+        self.startcol = int(measured['start_position_column'][...])
+        self.endcol = int(measured['end_position_column'][...])
         self.nlines, self.ncols = variable[:].shape
 
         logger.debug('Channel {} resolution: {}'.format(key.name, chkres))
@@ -201,6 +202,8 @@ class FCIFDHSIFileHandler(BaseFileHandler):
 #            self._vis_calibrate(data, key)
         else:
             pass
+
+        return(data)
 
     def _ir_calibrate(self, data, key):
         """IR channel calibration

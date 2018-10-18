@@ -27,7 +27,7 @@ import logging
 from datetime import datetime
 import numpy as np
 
-from satpy.dataset import Dataset, DatasetID
+from satpy.dataset import Dataset
 from satpy.readers.netcdf_utils import NetCDF4FileHandler
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ class GHRSST_OSISAFL2(NetCDF4FileHandler):
 
         ds_info.update({
             "units": ds_info.get("units", file_units),
-            "platform": PLATFORM_NAME.get(self['/attr/platform'],
+            "platform_name": PLATFORM_NAME.get(self['/attr/platform'],
                                           self['/attr/platform']),
             "sensor": SENSOR_NAME.get(self['/attr/sensor'],
                                       self['/attr/sensor']),

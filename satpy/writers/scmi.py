@@ -83,7 +83,10 @@ except ImportError:
 LOG = logging.getLogger(__name__)
 # AWIPS 2 seems to not like data values under 0
 AWIPS_USES_NEGATIVES = False
-DEFAULT_OUTPUT_PATTERN = '{source_name}_AII_{platform}_{sensor}_{name}_{sector_id}_{tile_id}_{start_time:%Y%m%d_%H%M}.nc'
+AWIPS_DATA_DTYPE = np.int16
+DEFAULT_OUTPUT_PATTERN = '{source_name}_AII_{platform_name}_{sensor}_' \
+                         '{name}_{sector_id}_{tile_id}_' \
+                         '{start_time:%Y%m%d_%H%M}.nc'
 
 # misc. global attributes
 SCMI_GLOBAL_ATT = dict(
@@ -104,16 +107,6 @@ UNIT_CONV = {
     'percent': '%',
     'Kelvin': 'kelvin',
     'K': 'kelvin',
-}
-
-
-# Lettered Grids are predefined/static tile grids starting with A
-# in the upper-left cell, going right until all cells are filled
-# Map proj_type -> (upper_left_extent, lower_right_extent, tile_width, tile_height)
-LETTERED_GRIDS = {
-    'lcc': ((-140, 55), (-50, 15), 5000, 5000),
-    'stere': ((130, 80), (-120, 50), 5000, 5000),
-    'mercator': ((-180, 50), (-50, 10), 5000, 5000),
 }
 
 
@@ -193,7 +186,9 @@ class NumberedTileGenerator(object):
         if y.shape[0] > 2**15:
             # awips uses 0, 1, 2, 3 so we can't use the negative end of the variable space
             raise ValueError("Y variable too large for AWIPS-version of 16-bit integer space")
-        return x, y
+        # NetCDF library doesn't handle numpy arrays nicely anymore for some
+        # reason and has been masking values that shouldn't be
+        return np.ma.masked_array(x), np.ma.masked_array(y)
 
     def _get_xy_scaling_parameters(self):
         """Get the X/Y coordinate limits for the full resulting image"""
@@ -248,7 +243,7 @@ class NumberedTileGenerator(object):
         ts = self.tile_shape
         tmp_tile = np.ma.zeros(ts, dtype=np.float32)
         tmp_tile.set_fill_value(fill_value)
-        tmp_tile[:] = fill_value
+        tmp_tile[:] = np.ma.masked
 
         if self._tile_cache:
             tile_infos = self._tile_cache
@@ -262,6 +257,7 @@ class NumberedTileGenerator(object):
                 continue
 
             yield tile_info[:-2], tmp_tile
+            tmp_tile[:] = np.ma.masked
 
 
 class LetteredTileGenerator(NumberedTileGenerator):
@@ -279,10 +275,10 @@ class LetteredTileGenerator(NumberedTileGenerator):
     def _get_tile_properties(self, tile_shape, tile_count):
         # ignore tile_shape and tile_count
         # they come from the base class, but aren't used here
+        del tile_shape, tile_count
 
         # get original image's X/Y
         ad = self.area_definition
-        p = Proj(ad.proj4_string)
         x, y = ad.get_proj_coords()
         x = x[0].squeeze()  # all rows should have the same coordinates
         y = y[:, 0].squeeze()  # all columns should have the same coordinates
@@ -361,7 +357,7 @@ class LetteredTileGenerator(NumberedTileGenerator):
     def _tile_identifier(self, ty, tx):
         st = self.num_subtiles
         ttc = self.total_tile_count
-        alpha_num = int((ty / st[0]) * (ttc[1] / st[1]) + (tx / st[1]))
+        alpha_num = int((ty // st[0]) * (ttc[1] // st[1]) + (tx // st[1]))
         alpha = string.ascii_uppercase[alpha_num]
         tile_num = int((ty % st[0]) * st[1] + (tx % st[1])) + 1
         return "T{}{:02d}".format(alpha, tile_num)
@@ -523,7 +519,11 @@ class NetCDFWriter(object):
                          valid_min=None, valid_max=None):
         fgf_coords = "%s %s" % (self.y_var_name, self.x_var_name)
 
-        self.image_data = self._nc.createVariable(self.image_var_name, 'u2', dimensions=(self.row_dim_name, self.col_dim_name), fill_value=fill_value, zlib=self._compress)
+        self.image_data = self._nc.createVariable(self.image_var_name,
+                                                  AWIPS_DATA_DTYPE,
+                                                  dimensions=(self.row_dim_name, self.col_dim_name),
+                                                  fill_value=fill_value,
+                                                  zlib=self._compress)
         self.image_data.coordinates = fgf_coords
         self.apply_data_attributes(bitdepth, scale_factor, add_offset,
                                    valid_min=valid_min, valid_max=valid_max)
@@ -590,7 +590,7 @@ class NetCDFWriter(object):
         LOG.info('writing image data')
         # note: autoscaling will be applied to make int16
         assert(hasattr(data, 'mask'))
-        self.image_data[:, :] = np.require(data.filled(fill_value), dtype=np.float32)
+        self.image_data[:, :] = np.require(data, dtype=np.float32)
 
     def set_projection_attrs(self, area_id, proj4_info):
         """
@@ -613,7 +613,7 @@ class NetCDFWriter(object):
             p.grid_mapping_name = "lambert_conformal_conic"
             p.standard_parallel = proj4_info["lat_0"]  # How do we specify two standard parallels?
             p.longitude_of_central_meridian = proj4_info["lon_0"]
-            p.latitude_of_projection_origion = proj4_info.get('lat_1', proj4_info['lat_0'])  # Correct?
+            p.latitude_of_projection_origin = proj4_info.get('lat_1', proj4_info['lat_0'])  # Correct?
         elif proj4_info['proj'] == 'stere':
             p = self.projection = self._nc.createVariable("polar_projection", 'i4')
             self.image_data.grid_mapping = "polar_projection"
@@ -621,7 +621,7 @@ class NetCDFWriter(object):
             p.grid_mapping_name = "polar_stereographic"
             p.standard_parallel = proj4_info["lat_ts"]
             p.straight_vertical_longitude_from_pole = proj4_info.get("lon_0", 0.0)
-            p.latitude_of_projection_origion = proj4_info["lat_0"]  # ?
+            p.latitude_of_projection_origin = proj4_info["lat_0"]  # ?
         elif proj4_info['proj'] == 'merc':
             p = self.projection = self._nc.createVariable("mercator_projection", 'i4')
             self.image_data.grid_mapping = "mercator_projection"
@@ -680,6 +680,17 @@ class SCMIWriter(Writer):
         self.compress = compress
         self.fix_awips = fix_awips
         self._fill_sector_info()
+
+    @classmethod
+    def separate_init_kwargs(cls, kwargs):
+        # FUTURE: Don't pass Scene.save_datasets kwargs to init and here
+        init_kwargs, kwargs = super(SCMIWriter, cls).separate_init_kwargs(
+            kwargs)
+        for kw in ['compress', 'fix_awips']:
+            if kw in kwargs:
+                init_kwargs[kw] = kwargs.pop(kw)
+
+        return init_kwargs, kwargs
 
     def _fill_sector_info(self):
         for sector_info in self.scmi_sectors.values():
@@ -795,7 +806,7 @@ class SCMIWriter(Writer):
             if awips_info['source_name'] is None:
                 raise TypeError("'source_name' keyword must be specified")
 
-            def_ce = "{}-{}".format(ds_info["platform"].upper(), ds_info["sensor"].upper())
+            def_ce = "{}-{}".format(ds_info["platform_name"].upper(), ds_info["sensor"].upper())
             awips_info.setdefault('creating_entity', def_ce)
             return awips_info
         except KeyError as e:
@@ -810,32 +821,39 @@ class SCMIWriter(Writer):
                       source_name=None, filename=None,
                       tile_count=(1, 1), tile_size=None,
                       lettered_grid=False, num_subtiles=None,
-                      **kwargs):
+                      compute=True, **kwargs):
         if sector_id is None:
             raise TypeError("Keyword 'sector_id' is required")
+        if not compute:
+            import warnings
+            warnings.warn("SCMI Writer does not support delayed computing "
+                          "yet.")
 
         def _area_id(area_def):
             return area_def.name + str(area_def.area_extent) + str(area_def.shape)
         # get all of the datasets stored by area
         area_datasets = {}
         for x in datasets:
-            area_id = _area_id(x.info['area'])
-            area, ds_list = area_datasets.setdefault(area_id, (x.info['area'], []))
+            area_id = _area_id(x.attrs['area'])
+            area, ds_list = area_datasets.setdefault(area_id, (x.attrs['area'], []))
             ds_list.append(x)
 
         output_filenames = []
-        dtype = np.dtype(np.uint16)
+        dtype = AWIPS_DATA_DTYPE
         fill_value = np.nan
         for area_id, (area_def, ds_list) in area_datasets.items():
             tile_gen = self._get_tile_generator(area_def, lettered_grid, sector_id, num_subtiles, tile_size, tile_count)
             for dataset in ds_list:
                 pkwargs = {}
-                ds_info = dataset.info.copy()
+                ds_info = dataset.attrs.copy()
                 LOG.info("Writing product %s to AWIPS SCMI NetCDF file", ds_info["name"])
                 if isinstance(dataset, np.ma.MaskedArray):
                     data = dataset
                 else:
-                    data = np.ma.masked_array(data, mask=np.isnan(data), copy=False)
+                    # FIXME: Handle data better by using `da.store` or move
+                    #        netcdf creation/storing to a dask delayed object
+                    mask = dataset.isnull()
+                    data = np.ma.masked_array(dataset.values, mask=mask, copy=False)
 
                 pkwargs['awips_info'] = self._get_awips_info(ds_info, source_name=source_name)
                 pkwargs['attr_helper'] = AttributeHelper(ds_info)
@@ -871,7 +889,7 @@ class SCMIWriter(Writer):
                 for (trow, tcol, tile_id, tmp_x, tmp_y), tmp_tile in tile_gen(data, fill_value=fill_value):
                     try:
                         fn = self.create_tile_output(
-                            dataset, sector_id,
+                            dataset.attrs, sector_id,
                             trow, tcol, tile_id, tmp_x, tmp_y, tmp_tile,
                             tile_gen.tile_count, tile_gen.image_shape,
                             tile_gen.mx, tile_gen.bx, tile_gen.my, tile_gen.by,
@@ -888,7 +906,7 @@ class SCMIWriter(Writer):
 
         return output_filenames[-1] if output_filenames else None
 
-    def create_tile_output(self, dataset, sector_id,
+    def create_tile_output(self, ds_info, sector_id,
                            trow, tcol, tile_id, tmp_x, tmp_y, tmp_tile,
                            tile_count, image_shape,
                            mx, bx, my, by,
@@ -896,7 +914,6 @@ class SCMIWriter(Writer):
                            awips_info, attr_helper,
                            fills, factor, offset, valid_min, valid_max, bit_depth, **kwargs):
         # Create the netcdf file
-        ds_info = dataset.info
         area_def = ds_info['area']
         created_files = []
         try:
@@ -1048,7 +1065,7 @@ def draw_rectangle(draw, coordinates, outline=None, fill=None, width=1):
 
 
 def create_debug_lettered_tiles(init_args, create_args):
-    from satpy import Dataset
+    import xarray as xr
     create_args['lettered_grid'] = True
     create_args['num_subtiles'] = (2, 2)  # default, don't use command line argument
 
@@ -1059,8 +1076,7 @@ def create_debug_lettered_tiles(init_args, create_args):
     area_def, arr = _create_debug_array(sector_info, create_args['num_subtiles'])
 
     now = datetime.utcnow()
-    product = Dataset(
-        arr,
+    product = xr.DataArray(arr, attrs=dict(
         mask=np.isnan(arr),
         name='debug_{}'.format(sector_id),
         platform='DEBUG',
@@ -1072,7 +1088,7 @@ def create_debug_lettered_tiles(init_args, create_args):
         units='1',
         valid_min=0,
         valid_max=255,
-    )
+    ))
     created_files = writer.save_dataset(
         product,
         **create_args
