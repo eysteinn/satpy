@@ -1,0 +1,238 @@
+reader:
+  description: Generic Eumetsat / KNMI Ascat Metop Wind field Reader
+  name: tropomi_l2
+  reader: !!python/name:satpy.readers.yaml_reader.FileYAMLReader ''
+  sensors: [tropomi]
+  default_datasets:
+
+datasets:
+  lon:
+    name: longitude
+    file_type:
+      - so2
+      - o3
+      - no2
+      - ncho
+      - aer_ai
+      - co
+      - cloud
+      # - ozone_total_vertical_column
+      # - nitrogendioxide_tropospheric_column
+      # - formaldehyde_tropospheric_vertical_column
+      # - aerosol_index_354_388
+      # - aerosol_index_340_380
+      # - carbonmonoxide_total_column
+      # - cloud_fraction
+    standard_name: longitude
+    units: degree
+    #resolution: 5000
+
+  lat:
+    name: latitude
+    file_type:
+      - so2
+      - o3
+      - no2
+      - ncho
+      - aer_ai
+      - co
+      - cloud
+      # - ozone_total_vertical_column
+      # - nitrogendioxide_tropospheric_column
+      # - formaldehyde_tropospheric_vertical_column
+      # - aerosol_index_354_388
+      # - aerosol_index_340_380
+      # - carbonmonoxide_total_column
+      # - cloud_fraction
+    standard_name: latitude
+    units: degree
+    #resolution: 5000
+
+  # lon_so2:
+  #   name: longitude
+  #   file_type:
+  #     - so2
+  #   standard_name: longitude
+  #   units: degree
+  
+  # lat_so2:
+  #   name: latitude
+  #   file_type:
+  #     - so2
+  #   standard_name: latitude
+  #   units: degree
+  
+  lon_so2:
+    name: lon_so2
+    file_type:
+      - so2
+    standard_name: longitude
+    units: degree
+  
+  lat_so2:
+    name: lat_so2
+    file_type:
+      - so2
+    standard_name: latitude
+    units: degree
+
+  sulfurdioxide_total_vertical_column:
+    name: sulfurdioxide_total_vertical_column
+    sensor: tropomi
+    coordinates: [lon_so2, lat_so2]
+    file_type: so2
+    standard_name: sulfurdioxide_total_vertical_column
+    units: molm^−2
+
+  lon_o3:
+    name: lon_o3
+    file_type:
+      - o3
+    standard_name: longitude
+    units: degree
+  
+  lat_o3:
+    name: lat_o3
+    file_type:
+      - o3
+    standard_name: latitude
+    units: degree
+
+  ozone_total_vertical_column:
+    name: ozone_total_vertical_column
+    sensor: tropomi
+    coordinates: [lon_o3, lat_o3]
+    file_type: o3
+    standard_name: ozone_total_vertical_column
+    units: molm^−2
+
+  lon_no2:
+    name: lon_no2
+    file_type:
+      - no2
+    standard_name: longitude
+    units: degree
+  
+  lat_no2:
+    name: lat_no2
+    file_type:
+      - no2
+    standard_name: latitude
+    units: degree
+
+  nitrogendioxide_tropospheric_column:
+    name: nitrogendioxide_tropospheric_column
+    sensor: tropomi
+    coordinates: [lon_no2, lat_no2]
+    file_type: no2
+    standard_name: nitrogendioxide_tropospheric_column
+    #units: molm^−2
+
+  #formaldehyde - 
+  formaldehyde_tropospheric_vertical_column:
+    name: formaldehyde_tropospheric_vertical_column
+    sensor: tropomi
+    coordinates: [longitude, latitude]
+    file_type: ncho
+    standard_name: formaldehyde_tropospheric_vertical_column
+    #units: molm^−2
+
+  lon_aer_ai:
+    name: lon_aer_ai
+    file_type:
+      - aer_ai
+    standard_name: longitude
+    units: degree
+  
+  lat_aer_ai:
+    name: lat_aer_ai
+    file_type:
+      - aer_ai
+    standard_name: latitude
+    units: degree
+
+  aerosol_index_354_388:
+    name: aerosol_index_354_388
+    sensor: tropomi
+    coordinates: [lon_aer_ai, lat_aer_ai]
+    file_type: aer_ai
+    standard_name: aerosol_index_354_388
+    #units: molm^−2
+    
+  aerosol_index_340_380:
+    name: aerosol_index_340_380
+    sensor: tropomi
+    coordinates: [lon_aer_ai, lat_aer_ai]
+    file_type: aer_ai
+    standard_name: aerosol_index_340_380
+    #units: molm^−2    
+
+  lon_co:
+    name: lon_co
+    file_type:
+      - co
+    standard_name: longitude
+    units: degree
+
+  lat_co:
+    name: lat_co
+    file_type:
+      - co
+    standard_name: latitude
+    units: degree
+
+  carbonmonoxide_total_column:
+    name: carbonmonoxide_total_column
+    sensor: tropomi
+    coordinates: [lon_co, lat_co]
+    file_type: co
+    standard_name: carbonmonoxide_total_column
+  
+  cloud_fraction:
+    name: cloud_fraction
+    sensor: tropomi
+    coordinates: [longitude, latitude]
+    file_type: cloud
+    standard_name: cloud_fraction
+  
+  # cloud_fraction_precision
+  # cloud_top_pressure
+  # cloud_top_pressure_precision
+  # cloud_base_pressure
+  # cloud_base_pressure_precision
+  # cloud_top_height
+  # cloud_top_height_precision
+  # cloud_base_height
+  # cloud_base_height_precision
+  # cloud_optical_thickness
+  # cloud_optical_thickness_precision
+
+file_types:
+  so2:
+    file_reader: !!python/name:satpy.readers.tropomi_l2.TROPOMI_L2_SO2_FileHandler ''
+    file_patterns: ['S5P_NRTI_L2__SO2____{start_time:%Y%m%dT%H%M%S}_{end_time:%Y%m%dT%H%M%S}_{orbit}_{collection}_{processor}_{processingtime:%Y%m%dT%H%M%S}.nc']
+  o3:
+    file_reader: !!python/name:satpy.readers.tropomi_l2.TROPOMI_L2_O3_FileHandler ''
+    #S5P_NRTI_L2__O3_____20190327T144752_20190327T145252_07522_01_010105_20190327T164119
+    file_patterns: ['S5P_NRTI_L2__O3_____{start_time:%Y%m%dT%H%M%S}_{end_time:%Y%m%dT%H%M%S}_{orbit}_{collection}_{processor}_{processingtime:%Y%m%dT%H%M%S}.nc']
+  no2:
+    file_reader: !!python/name:satpy.readers.tropomi_l2.TROPOMI_L2_NO2_FileHandler ''
+    file_patterns: ['S5P_NRTI_L2__NO2____{start_time:%Y%m%dT%H%M%S}_{end_time:%Y%m%dT%H%M%S}_{orbit}_{collection}_{processor}_{processingtime:%Y%m%dT%H%M%S}.nc']
+
+  ncho:
+    file_reader: !!python/name:satpy.readers.tropomi_l2.TROPOMI_L2_NCHO_FileHandler ''
+    file_patterns: ['S5P_NRTI_L2__HCHO___{start_time:%Y%m%dT%H%M%S}_{end_time:%Y%m%dT%H%M%S}_{orbit}_{collection}_{processor}_{processingtime:%Y%m%dT%H%M%S}.nc']
+
+  aer_ai:
+    file_reader: !!python/name:satpy.readers.tropomi_l2.TROPOMI_L2_AER_AI_FileHandler ''
+    file_patterns: ['S5P_NRTI_L2__AER_AI_{start_time:%Y%m%dT%H%M%S}_{end_time:%Y%m%dT%H%M%S}_{orbit}_{collection}_{processor}_{processingtime:%Y%m%dT%H%M%S}.nc']
+
+  co:
+    file_reader: !!python/name:satpy.readers.tropomi_l2.TROPOMI_L2_CO_FileHandler ''
+    file_patterns: ['S5P_NRTI_L2__CO_____{start_time:%Y%m%dT%H%M%S}_{end_time:%Y%m%dT%H%M%S}_{orbit}_{collection}_{processor}_{processingtime:%Y%m%dT%H%M%S}.nc']
+
+  cloud:
+    file_reader: !!python/name:satpy.readers.tropomi_l2.TROPOMI_L2_CLOUD_FileHandler ''
+    file_patterns: ['S5P_NRTI_L2__CLOUD__{start_time:%Y%m%dT%H%M%S}_{end_time:%Y%m%dT%H%M%S}_{orbit}_{collection}_{processor}_{processingtime:%Y%m%dT%H%M%S}.nc']
+
+
